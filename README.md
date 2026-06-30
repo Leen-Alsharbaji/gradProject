@@ -1,4 +1,4 @@
-# My Project (3)
+#AI_S&R robot simulation
 
 A Unity robotics/demo project built in Unity 2022.3.60f1. This workspace contains autonomous and teleoperation systems for a two-wheeled agent, including pathfinding, victim detection, audio/visual sensing, and camera follow behavior.
 
@@ -52,6 +52,36 @@ The project includes standard Unity modules plus the following packages:
 - `StableTwoWheelDrive` freezes X/Z rotation on the Rigidbody to prevent tipping.
 - Autonomous navigation only drives when the agent is aligned with the waypoint.
 - `BotBrain` transitions automatically based on audio events, victim detection, and operator input.
+
+## Behavior Logic
+
+- `BotBrain` implements a finite state machine with states: `Patrolling`, `InvestigatingAudio`, `SearchingArea`, `ExaminingVictim`, and `ManualControl`.
+- In `Patrolling`, the robot follows a patrol target using pathfinding and keeps vision inactive to reduce processing.
+- When audio input triggers an event, `BotBrain` switches to `InvestigatingAudio`, activates vision, and sends the robot toward the reported sound source.
+- If a victim is detected as horizontal or unconscious, the state changes to `ExaminingVictim`, and the robot approaches the victim to stop and request help.
+- Manual control can be toggled with `T` to take over driving and `P` to resume autonomous behavior.
+
+## Code and Model Architecture
+
+- `StableTwoWheelDrive.cs` uses Unity physics and a simple steering model:
+  - it applies forward force only when the robot is roughly aligned with the next path waypoint,
+  - uses lateral anti-drift forces for stability,
+  - and rotates visual wheel meshes by converting forward displacement into wheel rotation.
+- `PurePathfinder.cs` is a lightweight wrapper around `NavMesh.CalculatePath`.
+  - It samples `NavMeshPath.corners` as waypoints,
+  - keeps the robot on a flat plane by flattening Y coordinates,
+  - and advances to the next waypoint once it is within a configurable tolerance.
+- `VictimDetection.cs` and `VisualSensorySystem.cs` both connect to external vision services over TCP.
+  - They capture camera frames, encode them as JPEG, send them to a backend, and parse detection responses.
+  - `VictimDetection` converts a detected screen-space box into a world-space location using a raycast from the camera.
+  - `VisualSensorySystem` is explicitly optimized for a 640×640 inference resolution and mentions YOLO-style detection, indicating a bounding-box object detection model on the backend.
+- `AudioSensorySystem.cs` records in-game audio buffers, converts them to WAV format, and posts them to an HTTP service at `/analyze-audio`.
+  - The backend returns a trigger result and text, and when a trigger is detected, the system localizes the likely sound source in the Unity scene.
+
+## Models Used
+
+- Vision: an external object detection model, likely YOLO-style, that returns bounding boxes, confidence, and whether a person is downed/horizontal.
+- Audio: an external audio classification/trigger detection model hosted behind a REST endpoint that analyzes buffered game audio and reports if an event should be investigated.
 
 ## Contact
 
